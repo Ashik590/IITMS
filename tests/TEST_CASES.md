@@ -1,6 +1,18 @@
 # Integration test cases
 
-Implementation: `tests/integration/crud.test.ts`. Run with `npm test` after the setup steps in the root README. These scenarios are automated against actual HTTP endpoints and a PostgreSQL test database. This document describes expected results, not a claim that execution has passed.
+Implementation: `tests/integration/crud.test.ts` and `tests/integration/reports.test.ts`. Run with `npm test` after the setup steps in the root README. These scenarios are automated against actual HTTP endpoints and a PostgreSQL test database. This document describes expected results, not a claim that execution has passed.
+
+## Anonymous report cases
+
+| Case | Action | Expected result |
+| --- | --- | --- |
+| Anonymous submission | POST title and description without a token | 201; response has ID and NEW status but no report text; database row has no author or user ID |
+| Administrator boundary | GET list/item and PATCH item without admin token | 401; report contents stay hidden |
+| Review workflow | Move NEW to UNDER_REVIEW to RESOLVED; filter list by status | 200; matching report and persisted status |
+| Invalid transitions | Skip review, repeat a status, or reopen a terminal report | 409 |
+| Concurrent reviewers | Send two status changes at once | One 200 and one 409 |
+| Invalid input | Blank or unexpected submission fields, invalid status body, invalid list parameters | 400 |
+| Unknown report | GET a nonexistent UUID as admin | 404 |
 
 ## Cases exercised for both courses and events
 

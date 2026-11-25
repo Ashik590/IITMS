@@ -1,15 +1,15 @@
 # IITMS CRUD API assignment
 
-An API-only implementation of **Course Catalog Management** and **Event Management** from the IIT Management System proposal. There are ten CRUD endpoints, PostgreSQL persistence, request validation, and automated HTTP integration tests. No frontend is included.
+An API-only implementation of **Course Catalog Management**, **Event Management**, and **Anonymous Reports** from the IIT Management System proposal. It includes PostgreSQL persistence, request validation, and automated HTTP integration tests. No frontend is included.
 
 ## Stack and scope
 
 - Next.js App Router route handlers with TypeScript.
 - PostgreSQL with Prisma ORM 7 and its PostgreSQL driver adapter.
 - Zod for request validation and Vitest for integration tests.
-- Public read endpoints and a temporary administrator bearer token for writes.
+- Public course and event reads, open report submission, and a temporary administrator bearer token for report review and other writes.
 
-The token is an assignment access mechanism, not user login or role management. Account authentication, course offerings, enrollment, resources, event registrations, payments, notifications, and caching are outside this slice.
+The token is an assignment access mechanism, not user login or role management. Account authentication, course offerings, enrollment, resources, event registrations, payments, notifications, and caching are outside this slice. Until account authentication exists, report submission is open to anyone who can reach the API; the intended student/teacher restriction cannot yet be enforced.
 
 ## Setup
 
@@ -91,8 +91,16 @@ npm start
 | GET | `/api/events/:id` | Public | `200`, resource |
 | PATCH | `/api/events/:id` | Admin token | `200`, updated resource |
 | DELETE | `/api/events/:id` | Admin token | `204`, empty body |
+| POST | `/api/reports` | Public | `201`, report ID and status only |
+| GET | `/api/reports` | Admin token | `200`, paginated reports |
+| GET | `/api/reports/:id` | Admin token | `200`, full report |
+| PATCH | `/api/reports/:id` | Admin token | `200`, updated report status |
 
-For writes, send `Authorization: Bearer <ADMIN_API_TOKEN>` using the token configured in `.env`. POST and PATCH also require `Content-Type: application/json`. PATCH updates only supplied fields and must contain at least one valid field. Unknown body fields are rejected. IDs and timestamps are server-managed.
+For course and event writes and report status changes, send `Authorization: Bearer <ADMIN_API_TOKEN>` using the token configured in `.env`. POST and PATCH also require `Content-Type: application/json`. Course and event PATCH updates only supplied fields and must contain at least one valid field. Unknown body fields are rejected. IDs and timestamps are server-managed.
+
+Report submission is the exception to the write access rule: it needs no admin token. It accepts only `title` (1-150 characters) and `description` (1-5000 characters). Both are trimmed. It stores no author, user ID, or account link. The submission response omits the report text. Administrator responses use `Cache-Control: private, no-store`. Neither report text nor an identity is written by the report handlers to application logs. Operational infrastructure may still retain request metadata; this is not a promise of absolute untraceability.
+
+Administrators can filter `GET /api/reports` by `status` (`NEW`, `UNDER_REVIEW`, `RESOLVED`, `DISMISSED`) and use the same `page` and `limit` parameters as other lists. `PATCH /api/reports/:id` accepts only a `status` field. Valid transitions are `NEW` to `UNDER_REVIEW`, then `UNDER_REVIEW` to `RESOLVED` or `DISMISSED`. Invalid or competing changes return `409`. Terminal reports cannot be reopened.
 
 ### Courses
 
@@ -182,7 +190,7 @@ Lists contain `data` and pagination metadata:
 | 401 | Missing or invalid administrator token |
 | 404 | Well-formed ID does not identify a record |
 | 405 | HTTP method is unsupported; handled by Next.js |
-| 409 | Duplicate course code within a syllabus version |
+| 409 | Duplicate course code within a syllabus version, or invalid/competing report status change |
 | 415 | POST/PATCH did not use JSON content type |
 | 500 | Unexpected server/database error; internals are not returned |
 | 503 | Administrator token is not configured for a write request |
@@ -193,15 +201,17 @@ Framework-generated responses such as `405` may have an empty body; they do not 
 
 | Location | Responsibility |
 | --- | --- |
-| `src/app/api/` | HTTP route handlers for the two resources and health check |
+| `src/app/api/` | HTTP route handlers for courses, events, reports, and health check |
 | `src/lib/api.ts` | Shared request parsing, token check, and error responses |
-| `src/lib/validation.ts` | Course/event payload and query schemas |
+| `src/lib/validation.ts` | Course, event, and report payload and query schemas |
+| `src/lib/reports.ts` | Report transition rule and private response headers |
 | `src/lib/db.ts` | Shared Prisma client |
 | `src/lib/serializers.ts` | Decimal response formatting |
 | `prisma/schema.prisma` | Database models |
-| `prisma/migrations/` | Initial SQL migration and database constraints |
+| `prisma/migrations/` | SQL migrations and database constraints |
 | `tests/global-setup.ts` | Test database guard, migrations, and isolated server lifecycle |
 | `tests/integration/crud.test.ts` | Automated HTTP CRUD and error scenarios |
+| `tests/integration/reports.test.ts` | Anonymous submission and administrator review scenarios |
 
 The SQL migration also adds credit, semester, fee, and capacity check constraints; preserve these in future migrations because Prisma's model syntax does not represent them.
 

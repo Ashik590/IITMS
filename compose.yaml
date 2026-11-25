@@ -1,0 +1,20 @@
+services:
+  database:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: iitms
+      POSTGRES_PASSWORD: iitms_local
+      POSTGRES_DB: iitms
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - iitms_database:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U iitms -d iitms"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  iitms_database:

@@ -38,3 +38,18 @@ export const courseQuery = z.object({
 }).strict();
 
 export const eventQuery = z.object(pagination).strict();
+
+export const reportCreate = z.object({
+  title: text(150),
+  description: text(5000),
+}).strict();
+
+export const reportStatus = z.enum(["NEW", "UNDER_REVIEW", "RESOLVED", "DISMISSED"]);
+
+export const reportQuery = z.object({
+  page: pagination.page,
+  limit: pagination.limit,
+  status: reportStatus.optional(),
+}).strict();
+
+export const reportStatusUpdate = z.object({ status: reportStatus }).strict();
